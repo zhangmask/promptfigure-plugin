@@ -3,29 +3,43 @@
 在你的 AI 宿主（Codex / Claude Code / 任何支持 Agent Skills 的工具）里为论文配科研图。
 AI 通过 `pf` 命令读写锚点、出图、收审批；你在独立 GUI 窗口里看论文、看高亮、点审批。
 
-> 本插件**随 promptFigure 技能包一起发行**：从 [下载页](https://promptfigure.top/skill)
-> 拿到的 zip 里就含本插件（`plugin/` 目录），无需单独找仓库、单独装。
+> 插件与 skill 是**双向捆绑**的同一个产品：npm 装插件，skill 随包带；下载 skill 的 zip，
+> 插件就在包里。三条安装路径任选其一。
 
-## 安装（从技能包内）
+## 安装
+
+**① npm（推荐，插件 + 两个 skill 一起到手）**
 
 ```bash
-cd plugin                  # 技能包 zip 解压后的 plugin/ 目录
-npm install
-npm link                   # 全局可用 pf 命令（不 link 也可：node bin/pf.mjs …）
-pf login pf_你的key        # 官网控制台创建（默认扣额度，额度尽自动按次扣余额）
+npm i -g promptfigure
+pf skill install            # 把随包的 promptfigure-local / promptfigure-api 装进 ~/.claude/skills/
+pf login pf_你的key         # 官网控制台创建 key（默认扣额度，按次扣余额）
 ```
 
-## 宿主接入（本包自带 promptfigure-local skill，随插件一起装）
+**② 从技能 zip 内（不装 npm 全局包）**
 
+```bash
+cd plugin                   # 技能包 zip 解压后的 plugin/ 目录
+npm install && npm link     # 全局可用 pf（也可不 link：node bin/pf.mjs …）
+```
+
+**③ GitHub 仓库**：[zhangmask/promptfigure-plugin](https://github.com/zhangmask/promptfigure-plugin)
+（Release 里也有免安装的源码包；技能包总下载页：https://promptfigure.top/skill ）
+
+## 宿主接入（插件自带两个 skill，`pf skill install` 一次装好）
+
+`skill/` 下随包发行两个 skill，按宿主环境二选一或都装（不冲突，触发条件不同）：
+
+| skill | 适合 | 能力 |
+|---|---|---|
+| `promptfigure-local` | 装了本插件的宿主（Claude Code / Codex 等） | 文档只读预览、锚点定位、GUI 审批、本地规则层 craft、`pf export svg` |
+| `promptfigure-api` | 任何能跑 curl 的宿主（不想装插件） | REST 直调 `/api/v1/generate`，四阶段审核协议 |
+
+- **一键装**：`pf skill install [--dir <路径>]`（默认 `~/.claude/skills/`；`pf skill path` 只看包内路径）
 - **Codex**：把 `adapters/codex/` 里的 `promptfigure/` 放进 Codex 的 plugins 目录（或按 `marketplace.json` 本地安装）
-- **Claude Code**：`node adapters/claude-code/install.mjs`（拷贝 SKILL.md 到 `~/.claude/skills/`）
+- **无技能目录的宿主**：把某个 skill 的 `SKILL.md` 内容追加进 `AGENTS.md` / `CLAUDE.md` 末尾
 
-> `adapters/` 全部由 `node scripts/build-adapters.mjs` 生成，**勿手改**；skill 唯一源在 `skill/promptfigure-local/`。
-
-**只用纯 REST、不装插件的用户**：技能包根目录的 `SKILL.md`（promptfigure-api）就是为这种
-宿主准备的——任何能跑 curl 的 AI 都能用，`npx skills add zhangmask/promptfigure-skill`
-即装。两个 skill 按宿主环境二选一：装了插件用 promptfigure-local（文档预览/锚点/审批 GUI），
-没装用 promptfigure-api（REST 直调）。
+> `adapters/` 全部由 `node scripts/build-adapters.mjs` 生成，**勿手改**；skill 唯一源在 `skill/`。
 
 ## 用起来（AI 做的事，人只需要开个头）
 

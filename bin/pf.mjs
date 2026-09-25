@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import net from "node:net";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -121,6 +122,13 @@ promptFigure 本地插件 v${VERSION} —— 在你的 AI 宿主里为论文配�
                                      + 计费兜底 + 排练留痕，每条带理由——可疑版本可直接打回
   pf setup-tex               下载便携 tectonic（没有 TeX 环境时用，~20MB 免安装）
   pf doc compile [--doc <id>]  重新编译 LaTeX → PDF（改了源文件后用）
+
+skill（npm 装的插件自带，一条命令装进宿主）：
+  pf skill install            把随包的两个 skill 装进宿主技能目录（默认 ~/.claude/skills/）
+                               · promptfigure-local —— 插件工作流（文档预览/锚点/审批 GUI）
+                               · promptfigure-api —— 纯 REST 出图（任何能跑 curl 的宿主）
+                               [--dir <路径>] 可指定其他技能目录；两者按宿主环境二选一或都装
+  pf skill path               只看两个 skill 在插件包里的路径（手动拷贝/排查用）
 `;
 
 function die(msg, hintCmd) {
@@ -1887,6 +1895,35 @@ async function main() {
       const r = await setupTex();
       if (!r.ok) die(r.message);
       console.log("现在重新 pf open 论文即可编译预览");
+      return;
+    }
+
+    case "skill": {
+      // 随包发行的两个 skill 一键装进宿主（npm i -g promptfigure 后的落地步骤）
+      const PKG_ROOT = path.resolve(__dirname, "..");
+      const SKILLS = ["promptfigure-local", "promptfigure-api"];
+      const sub = rest[0] || "install";
+      if (sub === "path" || sub === "list") {
+        for (const s of SKILLS) console.log(path.join(PKG_ROOT, "skill", s));
+        return;
+      }
+      if (sub !== "install") {
+        die(`用法：pf skill install [--dir <技能目录>]｜pf skill path 只看路径`, "pf skill install");
+      }
+      const destRoot = arg("--dir") || path.join(os.homedir(), ".claude", "skills");
+      for (const s of SKILLS) {
+        if (!fs.existsSync(path.join(PKG_ROOT, "skill", s, "SKILL.md"))) {
+          die(`找不到 skill 源：${path.join(PKG_ROOT, "skill", s)} —— 插件包不完整？`, "重装：npm i -g promptfigure");
+        }
+      }
+      fs.mkdirSync(destRoot, { recursive: true });
+      for (const s of SKILLS) {
+        const dest = path.join(destRoot, s);
+        fs.cpSync(path.join(PKG_ROOT, "skill", s), dest, { recursive: true });
+        console.log(`✅ ${s} → ${dest}`);
+      }
+      console.log(`⏭ 其他宿主：Codex 把 ${path.join(PKG_ROOT, "adapters", "codex", "promptfigure")} 拷进 plugins 目录；`);
+      console.log(`   无技能目录的宿主（任意 Agent），把某个 skill 的 SKILL.md 内容追加进 AGENTS.md / CLAUDE.md 末尾。`);
       return;
     }
 
