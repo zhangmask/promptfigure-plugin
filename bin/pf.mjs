@@ -453,6 +453,18 @@ async function fetchReleaseNotes(latest) {
   }
 }
 
+// semver 比较：只有 registry 的 latest 严格大于本地版本才提示
+// （此前只做字符串不等比较——latest=0.3.0 而本地 0.3.2 时误报「有新版本」）
+function isNewer(latest, local) {
+  const parse = (v) => String(v || "").replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const a = parse(latest), b = parse(local);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] || 0) - (b[i] || 0);
+    if (d !== 0) return d > 0;
+  }
+  return false;
+}
+
 function printUpdateHint(latest, notes) {
   console.log(`⬆️  pf 有新版本 v${latest}（当前 v${VERSION}）—— 升级：npm i -g promptfigure`);
   for (const n of notes) console.log(`   · ${n}`);
@@ -465,13 +477,13 @@ async function maybeHintUpdate() {
     let cache = {};
     try { cache = JSON.parse(fs.readFileSync(UPDATE_CACHE, "utf8")); } catch { /* 首次/损坏：当没查过 */ }
     if (Number(cache.checked_at) && now - Number(cache.checked_at) < UPDATE_TTL_MS) {
-      if (cache.latest && cache.latest !== VERSION) printUpdateHint(String(cache.latest), Array.isArray(cache.notes) ? cache.notes : []);
+      if (cache.latest && isNewer(cache.latest, VERSION)) printUpdateHint(String(cache.latest), Array.isArray(cache.notes) ? cache.notes : []);
       return;
     }
     const latest = await fetchLatestVersion();
-    const notes = latest && latest !== VERSION ? await fetchReleaseNotes(latest) : [];
+    const notes = latest && isNewer(latest, VERSION) ? await fetchReleaseNotes(latest) : [];
     try { fs.writeFileSync(UPDATE_CACHE, JSON.stringify({ checked_at: now, latest, notes })); } catch { /* 缓存写不进就每次现查，功能不依赖它 */ }
-    if (latest && latest !== VERSION) printUpdateHint(latest, notes);
+    if (latest && isNewer(latest, VERSION)) printUpdateHint(latest, notes);
   } catch { /* 更新检查是锦上添花：任何意外都不许影响用户真正的命令 */ }
 }
 
@@ -614,7 +626,11 @@ async function main() {
       if (rest[0] === "context") {
         const out = await callDaemon("doc.context", { at }, docId);
         console.log(`# §${out.section} 上下文（${out.chars} 字）\n`);
-        out.paragraphs.forEach((t, i) => console.log(`¶${i + 1} ${t}\n`));
+        (out.blocks || []).forEach((b) => {
+          const tag = b.type === "caption" ? "（图注，占 ¶ 号）" : "";
+          console.log(`¶${b.para}${tag} ${b.text}
+`);
+        });
         return;
       }
       if (rest[0] === "search") {
@@ -789,7 +805,7 @@ async function main() {
       const model = arg("--model") || "standard";
       const rr = ratio && parseRatio(ratio);
       if (model === "standard" && rr && Math.abs(rr.w / rr.h - 1) > 0.15) {
-        console.error(`⚠️ standard 渲染端只出方图（1024x1024），给不了 ${ratio} —— 实测必报画布比不符（V13 白烧一次额度）。出路：① 改 --ratio 1:1 走 standard；② 宽幅/竖版必须走 premium，完整链路 = standard 方图草稿 → pf qa 核验 --pass → pf review resolve --approve（或 GUI 点通过）→ render --model premium（premium 门禁会查审批，修正迭代轮才可用 --force "理由" 豁免）。`);
+        console.error(`⚠️ standard 渲染端只出方图（1024x1024），给不了 ${ratio} —— 实测必报画布比不符（V13 白烧一次额度）。出路：① 改 --ratio 1:1 走 standard；② 宽幅/竖版可走 premium（链路同上），但 **premium 端也会把宽幅裁回方图**（实测 5:3 被降级 1:1 后裁剩 49.9%）——真要宽幅只能出图后自己拼接/裁副，或接受 1:1；完整链路 = standard 方图草稿 → pf qa 核验 --pass → pf review resolve --approve（或 GUI 点通过）→ render --model premium（premium 门禁会查审批，修正迭代轮才可用 --force "理由" 豁免）。`);
       }
       // 🔴 渲染端字节预算（v18 事故实测：8205 字节被 prompt_too_long 拒绝）——花钱之前先拦
       const promptBytes = Buffer.byteLength(String(prompt).trim(), "utf8");

@@ -556,8 +556,8 @@ export function craftPrompt(input = {}) {
   if (fixList.length) {
     promptParts.push(
       lang === "zh"
-        ? `上一版修正（以下全部是生成约束，**不是图面文字，严禁印到图上**；逐条必须满足）：${fixList.map((f, i) => `(${i + 1}) ${f}`).join("；")}。`
-        : `Corrections from the previous attempt — these are GENERATION CONSTRAINTS ONLY, **never print them onto the figure**; each is a HARD requirement, satisfy all of them: ${fixList.map((f, i) => `(${i + 1}) ${f}`).join("; ")}.`
+        ? `上一版修正（以下全部是生成约束，**不是图面文字，严禁印到图上**；逐条必须满足）：${fixList.map((f, i) => `(${i + 1}) "${f}"`).join("；")}。`
+        : `Corrections from the previous attempt — these are GENERATION CONSTRAINTS ONLY, **never print them onto the figure**; each is a HARD requirement, satisfy all of them: ${fixList.map((f, i) => `(${i + 1}) "${f}"`).join("; ")}.`
     );
   }
 
@@ -579,6 +579,19 @@ export function craftPrompt(input = {}) {
   // 引号剥离警告（实体标签/阶段标题归一时收集，见上方 stripQuote）
   if (quoteStripped.length) {
     warnings.push(`这些实体/阶段标题含双引号，已剥掉（${quoteStripped.join("、")}）——引号会击穿提示词的引号契约，卡面标签不要带引号字符。`);
+  }
+
+  // 🔴 显式可印文字白名单（2026-09-25 双智能体实测修复）：上面的卡面文字契约是长句描述，
+  //    实测管不住图模型——show/draw 引号句照样被印上图（GUI 侧为此多跑 3 轮精修，
+  //    CLI 侧被迫整体弃用 --fixes）。实测有效的形态 = 具体枚举 + 放在提示词最后
+  //    （recency 效应）：模型照着清单印字，清单外的一律当画法指令。
+  const allowedText = [...derivedStages.map((s) => s.title), ...entList].filter(Boolean);
+  if (allowedText.length) {
+    promptParts.push(
+      lang === "zh"
+        ? `可印文字白名单（图上唯一允许出现的文字，逐字）：${allowedText.map((s) => `"${s}"`).join("、")}。本提示词中其余一分内容——尤其是引号内的句子、draw/show 后面的描述——都只是【怎么画】的指令，印到图上即是错误。`
+        : `PRINTABLE TEXT WHITELIST (the ONLY strings allowed to appear as text on the figure, verbatim): ${allowedText.map((s) => `"${s}"`).join(", ")}. Every other part of this prompt — especially quoted sentences and anything after "draw"/"show" — is a DRAWING INSTRUCTION ONLY; rendering any of it as on-figure text is an error.`
+    );
   }
 
   // 组装后整体再过一遍确定性净化（幂等，删掉任何残留自省句 / 违禁模式）
