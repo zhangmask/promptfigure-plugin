@@ -121,6 +121,24 @@ export function startServer({ port, registerDaemon = true }) {
         const body = await readBody(req);
         if (body.token !== guiToken) return json(res, 403, { error: "bad session token" });
         const doc = u.searchParams.get("doc");
+        // 🔴 QA 门禁对齐 CLI（2026-09-25 双智能体实测发现的放水后门）：
+        //    GUI 通过审批此前不查 QA——AI 可以自己先点通过再补 QA，CLI 的硬闸被 GUI 绕过。
+        //    现在 approve 与 CLI 同尺：最新版 QA 通过 + 量化依据 + 图文件存在，缺一拒绝。
+        //    驳回/反馈不受限（它们不是放水动作）。
+        if (body.status === "approved") {
+          const meta = readMeta(doc);
+          const fig = meta?.figures?.[body.figureId];
+          if (fig) {
+            const { qaState, isQuantifiedNote } = await import("./quality.mjs");
+            const qs = qaState(fig);
+            if (!qs.fresh || qs.verdict !== "pass" || !isQuantifiedNote(qs.qa?.note)) {
+              return json(res, 409, {
+                error: "qa_required",
+                message: `图 ${body.figureId} 还没有通过的 QA 核验记录——先在终端跑 pf qa ${body.figureId} 亲眼核验并 --pass 写回，再来通过审批`,
+              });
+            }
+          }
+        }
         const r = setStatus(doc, body.figureId, body.status, body.note, "user");
         return json(res, 200, { ok: true, review: r });
       }

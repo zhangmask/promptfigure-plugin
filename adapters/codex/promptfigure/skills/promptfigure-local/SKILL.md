@@ -81,10 +81,10 @@ pf doctor                # 体检：TeX 引擎 / API key / 本地服务 / 当前
 pf audit                 # 审计一键可查：绕门记录（craft.forced/gate_bypass/review.forced）+ 计费兜底
                          #   每条带理由；接手别人项目/怀疑历史版本可信度时先跑它
 pf export svg <figId>    # 最新版 PNG → 可缩放 SVG（vtracer 描摹，draft/high 两档）
-                         #   ⚠️ 描摹 ≠ 可编辑矢量：文字全变路径，不可编辑不可搜索
-                         #   要「每个元素都能改」的可编辑矢量版（PPT 形状/独立 SVG 元素），
-                         #   让宿主 AI 用本地工具照终稿重绘（如 python-pptx/结构化 SVG，
-                         #   参考 github.com/icebird1998/scientific-illustifier）——禁止拿本命令的输出顶替
+                         #   ⚠️ 描摹件：文字全变路径、不可直接编辑——仅作退路。交付前必须核对
+                         #   数值与比例（数值差不多即可、对应关系必须对），并告知用户是描摹件
+                         #   首选：让宿主 AI 比照终稿用本地工具重绘（python-pptx 形状 / 结构化 SVG），
+                         #   每元素独立成对象，用图层分离的工具编辑（参考 github.com/icebird1998/scientific-illustifier）
                          #   首次用报缺依赖时：npm i @visioncortex/vtracer（纯 WASM 可商用）
 ```
 
@@ -374,6 +374,37 @@ pf craft --at "§3.2 ¶2" --figure-type pipeline \
   需要 PDF 预览时再 `pf setup-tex`，Codex Cloud 容器里通常没必要装。
 - **路径写法**：Git Bash 的 `/c/...`、Windows 的 `C:\...`、POSIX 的 `/home/...` 都能用；
   但 craft --out 建议用相对路径（当前目录下），最不容易踩环境差异。
+
+## 每轮交付与台账（每轮结束必交，CLI 优先）
+
+**CLI 优先**：出图、核验、审批、定稿全走 `pf` 命令（`pf next` 永远告诉你下一步）；
+GUI 只留给人两件事——亲眼看图、点审批。插件的门禁与留痕都挂在 CLI 上，
+走 CLI 的每一步在 `events.jsonl` 里可审计；无头环境（SSH/容器/CI）本来就全 CLI。
+
+每轮交付在**用户工作目录**建 `promptfigure-out/`，每轮一个新版本文件夹 `vN/`（v1 → v2…）：
+
+```
+promptfigure-out/
+├── vN/
+│   ├── round-vN.md                ← 本轮反馈（下面的必含项）
+│   └── figures/                   ← 本轮图（副本或引用，文件名带 -vN）
+├── paper-with-figures.md          ← 论文+已插图的演进版（无关段落省略，每次更新同一个）
+└── final/paper-final.md + 格式副本  ← 最终论文版本（定稿时才建）
+```
+
+**round-vN.md 必含**（与 promptfigure-api skill 的 deliverables-ledger.md 同一协议）：
+1. **本轮清单**：每张图——figureId / 图种 / 档位 / 版本 / 本机真实路径（本插件即
+   `~/.promptfigure/projects/<docId>/figures/<figureId>/vN.png`）/ 插入位置（§¶）
+2. **插入位置（两段边界）**：上一段最后一句 + 「……」 + 下一段第一句，用户一眼定位
+3. **所用上下文**：用了哪几段明确到 §¶；上下文只放**首句 + 「……」 + 尾句**；
+   数据/表格/代码文件一律给引用链接，不内联内容
+4. **图片版本**：每张图的每个版本独立文件（vN），旧版永不覆盖
+5. **优化前→优化后**（优化任务）：原图路径 vs 新图路径 + 改了什么 + 所用上下文（首尾句）
+
+**最终成稿流程**（用户说「定稿」）：提醒核对数据是否更新 → 用户确认后才 premium 定稿 →
+定稿后必问矢量图（本地 AI 重绘、token 贵、速度慢；比赛/数模默认不做；确认做则按元素
+分层重绘成可编辑矢量，PPT/WPS 按用户偏好）——完整协议见 promptfigure-api skill 的
+`references/deliverables-ledger.md`。
 
 ## 事件回放
 

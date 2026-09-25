@@ -547,6 +547,8 @@ export function craftPrompt(input = {}) {
 
   // —— 5.5) 多轮精修块：上一版核验出的缺陷逐条拼接为硬性修正（2026-09-21 定规）——
   // 不重掷骰子：上一版画对的部分原样保留，本块只钉死上一版的失败点。
+  // 🔴 2026-09-25 双智能体实测：修正文本此前无护栏，被图模型当卡面文字印上图
+  //    （实测 "Q2/Baseline" 字样上图；宿主被迫整体弃用 --fixes）。护栏=显式声明非图面文字。
   const fixList = String(fixes || "")
     .split(/[;；]/)
     .map((s) => s.trim())
@@ -554,8 +556,8 @@ export function craftPrompt(input = {}) {
   if (fixList.length) {
     promptParts.push(
       lang === "zh"
-        ? `上一版修正（逐条都是硬性要求，必须全部满足）：${fixList.map((f, i) => `(${i + 1}) ${f}`).join("；")}。`
-        : `Corrections from the previous attempt — each is a HARD requirement, satisfy all of them: ${fixList.map((f, i) => `(${i + 1}) ${f}`).join("; ")}.`
+        ? `上一版修正（以下全部是生成约束，**不是图面文字，严禁印到图上**；逐条必须满足）：${fixList.map((f, i) => `(${i + 1}) ${f}`).join("；")}。`
+        : `Corrections from the previous attempt — these are GENERATION CONSTRAINTS ONLY, **never print them onto the figure**; each is a HARD requirement, satisfy all of them: ${fixList.map((f, i) => `(${i + 1}) ${f}`).join("; ")}.`
     );
   }
 
